@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sistem Pinjaman Aset PKG</title>
+  
+  <script>
+    document.documentElement.style.backgroundColor = '#0f172a';
+  </script>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght=300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  
+  <style>
+    body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #0f172a; }
+    .glass-card {
+      background: rgba(30, 41, 59, 0.45);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-fade-in-up {
+      animation: fadeInUp 0.25s ease-out forwards;
+    }
+
+    /* 💡 Gaya Animasi Spinner untuk Splash Loading */
+    .smooth-loader {
+      border: 2px solid rgba(255, 255, 255, 0.1);
+      border-top: 2px solid #f59e0b; /* Warna amber-500 */
+      border-radius: 50%;
+      width: 24px;
+      height: 24px;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen pb-12 overflow-x-hidden">
+
+  <div id="landing-page-spinner" class="fixed inset-0 bg-slate-950 z-[999999] flex flex-col items-center justify-center p-4 transition-all duration-500">
+    <div class="animate-spin rounded-full h-14 w-14 border-4 border-slate-800 border-t-indigo-500 shrink-0"></div>
+    
+    <h3 class="text-white font-semibold text-base sm:text-lg mt-6 tracking-wide text-center px-4 leading-relaxed">
+        Unit Sumber Teknologi Pendidikan PPDPU
+    </h3>
+    
+    <p class="text-slate-400 text-xs sm:text-sm mt-2 animate-pulse text-center px-4">
+        Loading Smart Asset System...
+    </p>
+  </div>
+
+  <script>
+    /**
+     * ====================================================================
+     * FUNGSI PEMBANTU TARIKH & UTILITI
+     * ====================================================================
+     */
+    const dapatkanTarikhFormatISO = (tarikhObj = new Date()) => {
+      const tahun = tarikhObj.getFullYear();
+      const bulan = String(tarikhObj.getMonth() + 1).padStart(2, '0');
+      const hari = String(tarikhObj.getDate()).padStart(2, '0');
+      return `${tahun}-${bulan}-${hari}`;
+    };
+
+    const dapatkanTarikhEsokISO = () => {
+      const esok = new Date();
+      esok.setDate(esok.getDate() + 1);
+      return dapatkanTarikhFormatISO(esok);
+    };
+
+    const API_URL = "https://script.google.com/macros/s/AKfycbyRiTg0qBI6cok6MrU28l5E5xHOdbuG6TDPPYwBw0iM-4Z5b3ZS-y1btIY-pNVuXE5o/exec";
+    
+    let dbAset = [];
+    let dbSekolah = [];
+    let troliImbasan = [];
+    let penstrimanKameraAktif = null;
+    let pemetikGambarKamera = null;
+    let dataGambarB64 = "";
+    let senaraiAsetDipinjamSekolahSemasa = [];
+    let adakahAdminDisahkan = false;
+  </script>
+
+  <nav class="sticky top-0 z-[50] bg-slate-950/60 backdrop-blur-lg border-b border-white/[0.03] py-4 px-4 sm:px-8 flex justify-between items-center gap-2 shadow-xl shadow-black/10">
+    <div class="flex items-center gap-2 sm:gap-3 cursor-pointer shrink-0" onclick="location.reload()">
+      <div class="w-9 h-9 sm:w-11 sm:h-11 bg-white rounded-xl flex items-center justify-center p-1 sm:p-1.5 shadow-md shadow-black/20 shrink-0">
+        <img src="https://i.ibb.co/fYY58Rh2/JATA-NEGARA-PNG.png" alt="Jata Negara" class="w-full h-full object-contain">
+      </div>
+      <h1 class="text-base sm:text-xl font-bold tracking-tight text-white whitespace-nowrap">
+        PKG <span class="text-amber-500 font-bold">Asset</span>
+      </h1>
+    </div>
+    <button id="btn-pencetus-admin" onclick="bukaKotakPengesahanPIN()" class="bg-white text-slate-900 text-[10px] sm:text-xs font-bold px-3 py-2 sm:px-6 sm:py-3 rounded-xl sm:rounded-2xl shadow-xl hover:bg-slate-100 transition-colors shrink-0">🔒 Admin</button>
+  </nav>
+
+  <main class="px-4 max-w-md mx-auto space-y-6 mt-6">
+    
+    <section id="kotak-pin-admin" class="glass-card rounded-2xl p-4 border border-slate-700/50 hidden animate-fade-in-up space-y-3">
+      <div class="text-center">
+        <p class="text-xs font-medium text-slate-300">Masukkan 8-Digit PIN Keselamatan Admin</p>
+      </div>
+      <div class="flex gap-2 justify-center">
+        <input type="password" id="input-pin-admin" maxlength="8" placeholder="••••••••" class="w-full max-w-[160px] tracking-[0.5em] text-center bg-slate-900 border border-slate-700 rounded-xl py-2 text-sm focus:outline-none focus:border-amber-500 text-amber-400 font-bold font-mono">
+        <button onclick="sahkanPinAdmin()" class="bg-amber-500 hover:bg-amber-600 text-slate-950 px-4 font-bold text-xs rounded-xl transition-all">Sahkan</button>
+      </div>
+    </section>
+
+    <section class="space-y-3">
+      <div class="flex items-center justify-between px-2">
+        <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400">Status Stok Semasa</h3>
+        <input type="text" id="input-cari-aset" oninput="tapisSenaraiAset()" placeholder="Cari aset..." class="w-28 bg-slate-800/50 border border-slate-700/40 rounded-lg px-2 py-1 text-xs focus:outline-none text-white">
+      </div>
+      <div id="senarai-kad-aset" class="space-y-3">
+        <p class="text-center text-xs text-slate-500 py-4">Memuatkan data aset...</p>
+      </div>
+    </section>
+
+    <section class="glass-card rounded-[2rem] p-5 space-y-3">
+      <div class="border-b border-slate-800 pb-2">
+        <h3 class="text-sm font-bold text-white flex items-center gap-2">
+          <span class="w-1.5 h-1.5 rounded-full bg-blue-400"></span>Log Aktiviti & Edaran Sekolah
+        </h3>
+        <p class="text-[10px] text-slate-400 mt-0.5">Pantau status pinjaman terus tanpa klik kad</p>
+      </div>
+      <div id="log-edaran-sekolah" class="space-y-2.5 max-h-[35vh] overflow-y-auto no-scrollbar">
+        <p class="text-center text-xs text-slate-500 py-4">Memproses log edaran...</p>
+      </div>
+    </section>
+  </main>
+
+  <section id="modal-hub-admin" class="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md hidden transition-all duration-300">
+    <div class="glass-card w-full max-w-sm rounded-[2.5rem] p-6 shadow-2xl border border-slate-700/50 animate-fade-in-up relative text-center">
+      <button onclick="tutupHubAdmin()" class="absolute top-5 right-5 text-slate-400 hover:text-white bg-slate-800/80 p-2 rounded-full w-8 h-8 flex items-center justify-center text-xs font-bold transition-all">✕</button>
+      <div class="mb-6 mt-2">
+        <span class="text-xs font-semibold uppercase tracking-wider text-amber-400">Panel Kawalan</span>
+        <h3 class="text-xl font-bold text-white mt-0.5">Menu Pilihan Transaksi</h3>
+        <p class="text-[11px] text-slate-400 mt-1">Sila pilih jenis operasi yang ingin diproses:</p>
+      </div>
+      <div class="space-y-3">
+        <button onclick="bukaBorangTransaksiKhusus('pinjam')" class="w-full py-4 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold rounded-2xl text-sm transition-all flex items-center justify-center gap-2 shadow-md">
+          ➕ Daftar Borang Pinjaman
+        </button>
+        <button onclick="bukaBorangTransaksiKhusus('pulang')" class="w-full py-4 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-2xl text-sm transition-all flex items-center justify-center gap-2 shadow-md">
+          ↩️ Proses Borang Pemulangan
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <section id="panel-tab-pinjam" class="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md hidden transition-all duration-300">
+    <div class="glass-card w-full max-w-md rounded-[2.5rem] p-6 shadow-2xl border border-slate-700/50 animate-fade-in-up relative max-h-[90vh] overflow-y-auto no-scrollbar">
+      <button onclick="kembaliKeHubAdmin()" class="absolute top-5 right-5 text-slate-400 hover:text-white bg-slate-800/80 p-2 rounded-full w-8 h-8 flex items-center justify-center text-xs font-bold transition-all">✕</button>
+      
+      <div class="mb-4 border-b border-slate-800 pb-2">
+        <span class="text-xs font-semibold uppercase tracking-wider text-emerald-400">Menu Pengurusan</span>
+        <h3 class="text-xl font-bold text-white mt-0.5">Borang Pendaftaran Pinjaman</h3>
+      </div>
+
+      <div class="space-y-3">
+        <div class="relative">
+          <label class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">Pilih Sekolah Peminjam</label>
+          <input type="text" id="input-sekolah-pinjam" oninput="tapisCarianSekolah(this, 'dropdown-sekolah-pinjam')" placeholder="Taip kod atau nama sekolah..." class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-amber-500 text-white">
+          <input type="hidden" id="kod-sekolah-terpilih-pinjam">
+          <div id="dropdown-sekolah-pinjam" class="absolute z-50 left-0 right-0 mt-1 bg-slate-800 border border-slate-700 rounded-xl max-h-40 overflow-y-auto hidden no-scrollbar shadow-xl"></div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">Nama Peminjam</label>
+            <input type="text" id="nama-peminjam" placeholder="Nama Guru" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-amber-500 text-white">
+          </div>
+          <div>
+            <label class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">Emel Peminjam</label>
+            <input type="email" id="emel-peminjam" placeholder="guru@moe.edu.my" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-amber-500 text-white">
+          </div>
+        </div>
+
+        <div>
+          <label class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">Tarikh Jangka Pulang</label>
+          <input type="date" id="tarikh-pulang-pinjam" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-amber-500 text-white">
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-2 pt-3">
+        <button id="btn-toggle-scan-pinjam" onclick="togolKameraPengimbas('zon-scan-pinjam', 'btn-toggle-scan-pinjam')" class="py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-xs font-semibold hover:bg-slate-700 transition-all flex items-center justify-center gap-1">📷 Imbas QR</button>
+        <button onclick="bukaKameraSnapshot('video-snap-pinjam', 'zon-snap-pinjam', 'btn-capture-pinjam')" class="py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-xs font-semibold hover:bg-slate-700 transition-all flex items-center justify-center gap-1">🖼️ Snapshot Bukti</button>
+      </div>
+
+      <div id="zon-scan-pinjam" class="w-full overflow-hidden rounded-xl bg-black hidden aspect-square mt-2"></div>
+      
+      <div id="zon-snap-pinjam" class="relative w-full overflow-hidden rounded-xl bg-black hidden aspect-video mt-2">
+        <video id="video-snap-pinjam" autoplay playsinline class="w-full h-full object-cover"></video>
+        <button id="btn-capture-pinjam" onclick="tangkapGambarFizikal('video-snap-pinjam', 'preview-snap-pinjam', 'zon-snap-pinjam', 'btn-capture-pinjam')" class="absolute bottom-3 left-1/2 -translate-x-1/2 bg-rose-500 hover:bg-rose-600 text-white font-bold text-[10px] px-4 py-2 rounded-full shadow-lg z-[11000] pointer-events-auto">📸 KETIK UNTUK SNAP</button>
+      </div>
+      <img id="preview-snap-pinjam" alt="Preview Bukti" class="w-full rounded-xl border border-slate-700 hidden object-cover aspect-video mt-2">
+
+      <div class="space-y-2 pt-3">
+        <label class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">Item Dalam Troli Pinjaman</label>
+        <div id="senarai-troli-pinjam" class="space-y-1.5 max-h-28 overflow-y-auto no-scrollbar">
+          <p class="text-xs text-slate-500 italic">Sila imbas kod QR item...</p>
+        </div>
+      </div>
+
+      <button onclick="hantarTransaksiPinjaman()" class="w-full py-3 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-sm rounded-xl transition-all shadow-md mt-4">
+        Hantar Rekod Pinjaman
+      </button>
+    </div>
+  </section>
+
+  <section id="panel-tab-pulang" class="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md hidden transition-all duration-300">
+    <div class="glass-card w-full max-w-md rounded-[2.5rem] p-6 shadow-2xl border border-slate-700/50 animate-fade-in-up relative max-h-[90vh] overflow-y-auto no-scrollbar">
+      <button onclick="kembaliKeHubAdmin()" class="absolute top-5 right-5 text-slate-400 hover:text-white bg-slate-800/80 p-2 rounded-full w-8 h-8 flex items-center justify-center text-xs font-bold transition-all">✕</button>
+
+      <div class="mb-4 border-b border-slate-800 pb-2">
+        <span class="text-xs font-semibold uppercase tracking-wider text-amber-400">Menu Pengurusan</span>
+        <h3 class="text-xl font-bold text-white mt-0.5">Borang Pemulangan Aset</h3>
+      </div>
+
+      <div class="space-y-3">
+        <div class="relative">
+          <label class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">Pilih Sekolah Memulang</label>
+          <input type="text" id="input-sekolah-pulang" oninput="tapisCarianSekolah(this, 'dropdown-sekolah-pulang')" placeholder="Taip kod atau nama sekolah..." class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-amber-500 text-white">
+          <input type="hidden" id="kod-sekolah-terpilih-pulang">
+          <div id="dropdown-sekolah-pulang" class="absolute z-50 left-0 right-0 mt-1 bg-slate-800 border border-slate-700 rounded-xl max-h-40 overflow-y-auto hidden no-scrollbar shadow-xl"></div>
+        </div>
+
+        <div id="blok-aset-dipinjam" class="space-y-2 hidden">
+          <label class="text-[11px] font-semibold text-amber-400 uppercase tracking-wider block">Baki Aset Belum Pulang (Sekolah Ini)</label>
+          <div id="senarai-baki-aset-sekolah" class="space-y-1.5 max-h-28 overflow-y-auto no-scrollbar">
+            <p class="text-xs text-slate-500 italic">Sila pilih sekolah dahulu...</p>
+          </div>
+        </div>
+
+        <div>
+          <label class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">Catatan Kondisi / Keadaan Aset</label>
+          <textarea id="catatan-kondisi" rows="2" placeholder="Contoh: Dipulangkan dalam keadaan baik." class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-amber-500 text-white resize-none"></textarea>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-2 pt-3">
+        <button id="btn-toggle-scan-pulang" onclick="togolKameraPengimbas('zon-scan-pulang', 'btn-toggle-scan-pulang')" class="py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-xs font-semibold hover:bg-slate-700 transition-all flex items-center justify-center gap-1">📷 Imbas QR</button>
+        <button onclick="bukaKameraSnapshot('video-snap-pulang', 'zon-snap-pulang', 'btn-capture-pulang')" class="py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-xs font-semibold hover:bg-slate-700 transition-all flex items-center justify-center gap-1">🖼️ Snapshot Bukti</button>
+      </div>
+
+      <div id="zon-scan-pulang" class="w-full overflow-hidden rounded-xl bg-black hidden aspect-square mt-2"></div>
+      
+      <div id="zon-snap-pulang" class="relative w-full overflow-hidden rounded-xl bg-black hidden aspect-video mt-2">
+        <video id="video-snap-pulang" autoplay playsinline class="w-full h-full object-cover"></video>
+        <button id="btn-capture-pulang" onclick="tangkapGambarFizikal('video-snap-pulang', 'preview-snap-pulang', 'zon-snap-pulang', 'btn-capture-pulang')" class="absolute bottom-3 left-1/2 -translate-x-1/2 bg-rose-500 hover:bg-rose-600 text-white font-bold text-[10px] px-4 py-2 rounded-full shadow-lg z-[11000] pointer-events-auto">📸 KETIK UNTUK SNAP</button>
+      </div>
+      <img id="preview-snap-pulang" alt="Preview Bukti" class="w-full rounded-xl border border-slate-700 hidden object-cover aspect-video mt-2">
+
+      <div class="space-y-2 pt-3">
+        <label class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">Item Terimbas (Sedia Dipulangkan)</label>
+        <div id="senarai-troli-pulang" class="space-y-1.5 max-h-28 overflow-y-auto no-scrollbar">
+          <p class="text-xs text-slate-500 italic">Sila imbas kod QR item...</p>
+        </div>
+      </div>
+
+      <button onclick="hantarTransaksiPemulangan()" class="w-full py-3 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-sm rounded-xl transition-all shadow-md mt-4">
+        Sahkan Pemulangan Aset
+      </button>
+    </div>
+  </section>
+
+  <canvas id="canvas-snap" class="hidden"></canvas>
+  <div id="kontainer-toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-[100000] flex flex-col gap-2 w-11/12 max-w-sm pointer-events-none"></div>
+  <div id="overlay-ralat-skrin" class="fixed inset-0 bg-red-600/30 opacity-0 pointer-events-none z-[99999] transition-opacity duration-150"></div>
+
+  <div id="modal-peminjam" class="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md hidden transition-all duration-300">
+    <div class="glass-card w-full max-w-md rounded-[2.5rem] p-6 shadow-2xl border border-slate-700/50 animate-fade-in-up relative">
+      <button onclick="tutupModalPeminjam()" class="absolute top-5 right-5 text-slate-400 hover:text-white bg-slate-800/80 p-2 rounded-full w-8 h-8 flex items-center justify-center text-xs font-bold transition-all">✕</button>
+      <div class="mb-4">
+        <span class="text-xs font-semibold uppercase tracking-wider text-amber-400">Rekod Edaran Stor</span>
+        <h3 id="modal-nama-aset" class="text-xl font-bold text-white mt-0.5">Nama Aset</h3>
+      </div>
+      <div id="modal-senarai-sekolah" class="space-y-3 max-h-[50vh] overflow-y-auto no-scrollbar pr-1"></div>
+      <button onclick="tutupModalPeminjam()" class="w-full mt-5 py-3 bg-slate-800 hover:bg-slate-700 text-white font-medium rounded-xl text-sm transition-all border border-slate-700/50">Tutup Paparan</button>
+    </div>
+  </div>
+
+  <script>
+    window.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('tarikh-pulang-pinjam').value = dapatkanTarikhEsokISO();
+      muatDataAsalDariSheets();
+    });
+
+    async function muatDataAsalDariSheets() {
+      try {
+        const urlLive = `${API_URL}?action=ambilDataAsal&t=${new Date().getTime()}`;
+        const respons = await fetch(urlLive);
+        const hasil = await respons.json();
+        dbAset = hasil.aset || [];
+        dbSekolah = hasil.sekolah || [];
+        binaLogEdaranSekolah();
+        binaSenaraiAsetVisual(dbAset);
+      } catch (e) {
+        paparNotifikasiPintar("Gagal mendengarkan Google Sheets: " + e.toString(), 'ralat');
+      } finally {
+        // 🎯 KEMASKINI: Tukar ID di sini supaya sepadan dengan ID spinner baharu anda
+        const spinner = document.getElementById('landing-page-spinner');
+        if (spinner) {
+          spinner.classList.add('opacity-0'); // Mencetuskan efek fade-out yang lembut
+          setTimeout(() => {
+            spinner.remove(); // Membuang elemen terus dari skrin selepas 0.5 saat
+          }, 500);
+        }
+      }
+    }
+
+    function binaLogEdaranSekolah() {
+      const kontainerLog = document.getElementById('log-edaran-sekolah');
+      const asetDipinjam = dbAset.filter(a => a.status && a.status.toLowerCase() === 'dipinjam');
+      if (asetDipinjam.length === 0) {
+        kontainerLog.innerHTML = `<div class="text-center py-4 text-slate-500"><p class="text-xs">🟢 Semua aset selamat di stor PKG.</p></div>`;
+        return;
+      }
+      const kompilasi = {};
+      asetDipinjam.forEach(a => {
+        const kunci = `${a.sekolahSemasa}_${a.nama}`;
+        if (!kompilasi[kunci]) { kompilasi[kunci] = { sekolah: a.sekolahSemasa, aset: a.nama, kuantiti: 0 }; }
+        kompilasi[kunci].kuantiti++;
+      });
+      kontainerLog.innerHTML = Object.keys(kompilasi).map(k => {
+        const item = kompilasi[k];
+        return `
+          <div class="bg-slate-800/30 border border-slate-800/60 rounded-xl p-3 flex justify-between items-center">
+            <div>
+              <h4 class="text-xs font-semibold text-white">${item.sekolah}</h4>
+              <p class="text-[10px] text-slate-400 mt-0.5">Meminjam <span class="text-amber-400 font-medium">${item.kuantiti} set</span> ${item.aset}</p>
+            </div>
+            <span class="text-[9px] font-bold px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-400 border border-amber-500/20 uppercase tracking-wide">Belum Pulang</span>
+          </div>`;
+      }).join('');
+    }
+
+    function bukaKotakPengesahanPIN() {
+      if (adakahAdminDisahkan) {
+        document.getElementById('modal-hub-admin').classList.remove('hidden');
+        return;
+      }
+      const kotakPin = document.getElementById('kotak-pin-admin');
+      kotakPin.classList.toggle('hidden');
+      if(!kotakPin.classList.contains('hidden')) { document.getElementById('input-pin-admin').focus(); }
+    }
+
+    function sahkanPinAdmin() {
+      const nilaiPin = document.getElementById('input-pin-admin').value;
+      if (nilaiPin === "88888888") {
+        adakahAdminDisahkan = true;
+        paparNotifikasiPintar("Akses Admin Dibenarkan!", "sukses");
+        document.getElementById('kotak-pin-admin').classList.add('hidden');
+        document.getElementById('modal-hub-admin').classList.remove('hidden');
+      } else {
+        paparNotifikasiPintar("PIN Salah! Akses Ditolak.", "ralat");
+        document.getElementById('input-pin-admin').value = "";
+      }
+    }
+
+    function bukaBorangTransaksiKhusus(jenisBorang) {
+      document.getElementById('modal-hub-admin').classList.add('hidden');
+      troliImbasan = [];
+      dataGambarB64 = "";
+      kemaskiniPaparanTroli();
+
+      if (jenisBorang === 'pinjam') {
+        document.getElementById('panel-tab-pinjam').classList.remove('hidden');
+      } else if (jenisBorang === 'pulang') {
+        document.getElementById('panel-tab-pulang').classList.remove('hidden');
+      }
+    }
+
+    function tutupHubAdmin() { document.getElementById('modal-hub-admin').classList.add('hidden'); }
+    function kembaliKeHubAdmin() {
+      tutupSemuaKamera();
+      document.getElementById('panel-tab-pinjam').classList.add('hidden');
+      document.getElementById('panel-tab-pulang').classList.add('hidden');
+      document.getElementById('modal-hub-admin').classList.remove('hidden');
+    }
+
+    function tutupModalTab() {
+      tutupSemuaKamera();
+      document.getElementById('panel-tab-pinjam').classList.add('hidden');
+      document.getElementById('panel-tab-pulang').classList.add('hidden');
+      document.getElementById('modal-hub-admin').classList.add('hidden');
+    }
+
+    function binaSenaraiAsetVisual(senarai) {
+      const kontainer = document.getElementById('senarai-kad-aset');
+      if(senarai.length === 0) {
+        kontainer.innerHTML = `<p class="text-center text-xs text-slate-500 py-4">Tiada rekod ditemui</p>`;
+        return;
+      }
+      const kumpulanAset = {};
+      senarai.forEach(a => {
+        if (!kumpulanAset[a.nama]) { kumpulanAset[a.nama] = { total: 0, sedia: 0, dipinjam: 0, peminjam: [] }; }
+        kumpulanAset[a.nama].total++;
+        if (a.status && a.status.toLowerCase() === 'sedia') kumpulanAset[a.nama].sedia++;
+        else if (a.status && a.status.toLowerCase() === 'dipinjam') {
+          kumpulanAset[a.nama].dipinjam++;
+          kumpulanAset[a.nama].peminjam.push({ id: a.id, sekolah: a.sekolahSemasa || "Sekolah Tidak Diketahui" });
+        }
+      });
+
+      kontainer.innerHTML = Object.keys(kumpulanAset).map(namaAset => {
+        const info = kumpulanAset[namaAset];
+        const dataPeminjamString = encodeURIComponent(JSON.stringify(info.peminjam));
+        return `
+          <div onclick="bukaModalPeminjam('${namaAset}', '${dataPeminjamString}')" class="glass-card rounded-3xl p-5 border border-slate-800 hover:border-slate-700/80 transition-all cursor-pointer shadow-lg active:scale-[0.99]">
+            <div class="flex justify-between items-start">
+              <div>
+                <h4 class="text-base font-bold text-white tracking-tight">${namaAset}</h4>
+                <p class="text-xs text-slate-400 mt-0.5 font-medium">Jumlah Inventori: <span class="text-slate-200 font-semibold">${info.total} Unit</span></p>
+              </div>
+              <span class="bg-slate-800 text-slate-300 font-mono text-[10px] font-bold px-2 py-1 rounded-lg border border-slate-700/40">Kategori Aset</span>
+            </div>
+            <div class="grid grid-cols-2 gap-3 mt-4 pt-3.5 border-t border-slate-800/60">
+              <div class="bg-emerald-950/20 border border-emerald-900/30 rounded-xl p-2.5">
+                <p class="text-[10px] text-emerald-500 font-medium uppercase tracking-wider">🟢 Ready / Sedia</p>
+                <p class="text-lg font-bold text-emerald-400 mt-0.5">${info.sedia}</p>
+              </div>
+              <div class="bg-amber-950/20 border border-amber-900/30 rounded-xl p-2.5">
+                <p class="text-[10px] text-amber-500 font-medium uppercase tracking-wider">🟡 On Loan / Dipinjam</p>
+                <p class="text-lg font-bold text-amber-400 mt-0.5">${info.dipinjam}</p>
+              </div>
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    function tapisSenaraiAset() {
+      const kueri = document.getElementById('input-cari-aset').value.toLowerCase();
+      const hasilTapis = dbAset.filter(a => a.nama.toLowerCase().includes(kueri));
+      binaSenaraiAsetVisual(hasilTapis);
+    }
+
+    function bukaModalPeminjam(namaAset, dataPeminjamString) {
+      const senaraiPeminjam = JSON.parse(decodeURIComponent(dataPeminjamString));
+      document.getElementById('modal-nama-aset').innerText = namaAset;
+      const kontainerSenarai = document.getElementById('modal-senarai-sekolah');
+      if (senaraiPeminjam.length === 0) {
+        kontainerSenarai.innerHTML = `<div class="text-center py-6 text-slate-500"><p class="text-sm">❌ Tiada unit yang sedang dipinjam.</p></div>`;
+      } else {
+        const ringkasanSekolah = {};
+        senaraiPeminjam.forEach(p => {
+          if(!ringkasanSekolah[p.sekolah]) { ringkasanSekolah[p.sekolah] = { kuantiti: 0, tagId: [] }; }
+          ringkasanSekolah[p.sekolah].kuantiti++;
+          ringkasanSekolah[p.sekolah].tagId.push(p.id);
+        });
+        kontainerSenarai.innerHTML = Object.keys(ringkasanSekolah).map(namaSekolah => {
+          const detail = ringkasanSekolah[namaSekolah];
+          return `
+            <div class="bg-slate-800/50 border border-slate-700/40 p-4 rounded-2xl flex flex-col gap-2 shadow-sm">
+              <div class="flex justify-between items-start">
+                <h5 class="text-sm font-semibold text-white">${namaSekolah}</h5>
+                <span class="bg-amber-500 text-slate-950 font-bold font-mono text-xs px-2.5 py-1 rounded-xl">${detail.kuantiti} Unit</span>
+              </div>
+              <div class="pt-1.5 border-t border-slate-700/30 flex flex-wrap gap-1.5 items-center">
+                ${detail.tagId.map(id => `<span class="bg-slate-900 text-slate-400 border border-slate-700/60 font-mono text-[9px] px-1.5 py-0.5 rounded-md">${id}</span>`).join('')}
+              </div>
+            </div>`;
+        }).join('');
+      }
+      document.getElementById('modal-peminjam').classList.remove('hidden');
+    }
+
+    function tutupModalPeminjam() { document.getElementById('modal-peminjam').classList.add('hidden'); }
+
+    function tapisCarianSekolah(elemenInput, idDropdown) {
+      const kueri = elemenInput.value.toLowerCase();
+      const dropdown = document.getElementById(idDropdown);
+      if(!kueri) { dropdown.classList.add('hidden'); return; }
+      const padanan = dbSekolah.filter(s => s.kod.toLowerCase().includes(kueri) || s.nama.toLowerCase().includes(kueri));
+      if(padanan.length === 0) { dropdown.classList.add('hidden'); return; }
+      dropdown.innerHTML = padanan.map(s => `
+        <div onclick="pilihSekolah('${s.kod}', '${s.nama}', '${elemenInput.id}', '${idDropdown}')" class="px-4 py-2 text-sm text-slate-200 hover:bg-slate-700 cursor-pointer border-b border-slate-700/30">
+          <span class="font-mono text-amber-400 text-xs font-bold mr-2">[${s.kod}]</span>${s.nama}
+        </div>`).join('');
+      dropdown.classList.remove('hidden');
+    }
+
+    function pilihSekolah(kod, nama, idInput, idDropdown) {
+      document.getElementById(idInput).value = `${kod} - ${nama}`;
+      document.getElementById(idDropdown).classList.add('hidden');
+      const penandaId = idInput.includes('pinjam') ? 'kod-sekolah-terpilih-pinjam' : 'kod-sekolah-terpilih-pulang';
+      document.getElementById(penandaId).value = kod;
+
+      if(idInput.includes('pulang')) {
+        const kodBersih = kod.toLowerCase().trim();
+        const namaBersih = nama.toLowerCase().trim();
+        senaraiAsetDipinjamSekolahSemasa = dbAset.filter(a => {
+          if (!a.status || a.status.toLowerCase() !== 'dipinjam' || !a.sekolahSemasa) return false;
+          const sekolahDbBersih = a.sekolahSemasa.toLowerCase().trim();
+          return sekolahDbBersih.includes(kodBersih) || sekolahDbBersih.includes(namaBersih);
+        });
+        document.getElementById('blok-aset-dipinjam').classList.remove('hidden');
+        binaPaparanBakiAsetSekolah();
+      }
+    }
+
+    function binaPaparanBakiAsetSekolah() {
+      const kontainer = document.getElementById('senarai-baki-aset-sekolah');
+      const bakiBelumScan = senaraiAsetDipinjamSekolahSemasa.filter(a => !troliImbasan.includes(a.id));
+      if(bakiBelumScan.length === 0) {
+        kontainer.innerHTML = `<p class="text-xs text-emerald-400 italic bg-emerald-950/30 p-2.5 rounded-xl text-center border border-emerald-900/40">🎉 Semua aset sekolah ini telah dimasukkan ke senarai pulang!</p>`;
+        return;
+      }
+      kontainer.innerHTML = bakiBelumScan.map(a => `
+        <div class="flex items-center justify-between bg-slate-800/60 border border-slate-700/40 px-3 py-2 rounded-xl">
+          <div><span class="text-xs font-mono font-bold text-slate-300">${a.id}</span><span class="text-xs text-slate-400 ml-2">- ${a.nama}</span></div>
+          <span class="text-[10px] font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-md uppercase border border-amber-500/20">Dipinjam</span>
+        </div>`).join('');
+    }
+
+    function togolKameraPengimbas(idTargetKamera, idButang) {
+      const butang = document.getElementById(idButang);
+      const zonKamera = document.getElementById(idTargetKamera);
+      if (penstrimanKameraAktif && penstrimanKameraAktif.isScanning) {
+        penstrimanKameraAktif.stop().then(() => {
+          penstrimanKameraAktif = null; zonKamera.classList.add('hidden'); butang.innerHTML = "📷 Imbas QR";
+        });
+        return;
+      }
+      zonKamera.classList.remove('hidden'); butang.innerHTML = "✕ Tutup QR";
+      meluncurkanKameraBersih(idTargetKamera, butang);
+    }
+
+    let idTerakhirDiscan = "";
+    let masaScanTerakhir = 0;
+
+    function meluncurkanKameraBersih(idTargetKamera, butang) {
+      penstrimanKameraAktif = new Html5Qrcode(idTargetKamera);
+      penstrimanKameraAktif.start(
+        { facingMode: "environment" }, { fps: 12, qrbox: { width: 220, height: 220 }, aspectRatio: 1.0 },
+        (teksQr) => {
+          const idAsetDitemui = teksQr.trim();
+          const masaSekarang = Date.now();
+          const isTabPulang = idTargetKamera.includes('pulang');
+
+          if (idAsetDitemui === idTerakhirDiscan && (masaSekarang - masaScanTerakhir) < 2000) return;
+          idTerakhirDiscan = idAsetDitemui; masaScanTerakhir = masaSekarang;
+
+          const padananAsetDalamDb = dbAset.find(a => a.id === idAsetDitemui);
+          if (!padananAsetDalamDb) {
+            paparNotifikasiPintar(`Tag ID [${idAsetDitemui}] tiada dalam inventori PKG!`, 'ralat'); return;
+          }
+          if (!isTabPulang && padananAsetDalamDb.status && padananAsetDalamDb.status.toLowerCase() === 'dipinjam') {
+            paparNotifikasiPintar(`🔒 Item [${idAsetDitemui}] sedang dipinjam oleh ${padananAsetDalamDb.sekolahSemasa}!`, 'ralat'); return;
+          }
+          if (isTabPulang && !senaraiAsetDipinjamSekolahSemasa.some(a => a.id === idAsetDitemui)) {
+            paparNotifikasiPintar(`Item [${idAsetDitemui}] tiada dalam pinjaman sekolah ini!`, 'ralat'); return;
+          }
+
+          if (!troliImbasan.includes(idAsetDitemui)) {
+            troliImbasan.push(idAsetDitemui); kemaskiniPaparanTroli();
+            paparNotifikasiPintar(`Item [${idAsetDitemui}] dimasukkan!`, 'sukses');
+          } else {
+            paparNotifikasiPintar(`Item [${idAsetDitemui}] sudah sedia ada.`, 'ralat');
+          }
+        }, () => {}
+      ).catch(() => {
+        paparNotifikasiPintar("Gagal mengakses kamera.", 'ralat');
+        butang.innerHTML = "📷 Imbas QR"; zonKamera.classList.add('hidden');
+      });
+    }
+
+    function kemaskiniPaparanTroli() {
+      const kontainerPinjam = document.getElementById('senarai-troli-pinjam');
+      const kontainerPulang = document.getElementById('senarai-troli-pulang');
+      const elemenSenarai = troliImbasan.map(id => `
+        <div class="flex items-center justify-between bg-slate-800 px-3 py-2 rounded-xl border border-slate-700/60">
+          <span class="text-xs font-mono font-bold text-slate-200">${id}</span>
+          <button onclick="buangDariTroli('${id}')" class="text-red-400 text-xs font-semibold px-2">Padam</button>
+        </div>`).join('');
+      const htmlKosong = `<p class="text-xs text-slate-500 italic">Sila imbas kod QR item...</p>`;
+      if (kontainerPinjam) kontainerPinjam.innerHTML = troliImbasan.length ? elemenSenarai : htmlKosong;
+      if (kontainerPulang) kontainerPulang.innerHTML = troliImbasan.length ? elemenSenarai : htmlKosong;
+      if (!document.getElementById('panel-tab-pulang').classList.contains('hidden')) { binaPaparanBakiAsetSekolah(); }
+    }
+
+    function buangDariTroli(id) { troliImbasan = troliImbasan.filter(item => item !== id); kemaskiniPaparanTroli(); }
+
+    function bukaKameraSnapshot(idVideo, idZonVideo, idButangSnap) {
+      const video = document.getElementById(idVideo);
+      const zonVideo = document.getElementById(idZonVideo);
+      const btnSnap = document.getElementById(idButangSnap);
+      
+      // Bersihkan penstriman snapshot sedia ada jika ada
+      if (pemetikGambarKamera) {
+        pemetikGambarKamera.getTracks().forEach(track => track.stop());
+        pemetikGambarKamera = null;
+      }
+      
+      // Paparkan kontainer video dan butang ketik terapung
+      zonVideo.classList.remove('hidden');
+      if (btnSnap) btnSnap.classList.remove('hidden');
+      
+      // Sembunyikan elemen preview imej lama semasa kamera aktif semula
+      const idAkhiran = idVideo.includes('pinjam') ? 'pinjam' : 'pulang';
+      document.getElementById(`preview-snap-${idAkhiran}`).classList.add('hidden');
+
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false })
+        .then(strim => {
+          pemetikGambarKamera = strim;
+          video.srcObject = strim;
+          video.classList.remove('hidden');
+        })
+        .catch(err => {
+          paparNotifikasiPintar("Akses kamera dinafikan: " + err.message, 'ralat');
+          zonVideo.classList.add('hidden');
+        });
+    }
+
+function tangkapGambarFizikal(idVideo, idImgPreview, idZonVideo, idButangSnap) {
+      const video = document.getElementById(idVideo);
+      const img = document.getElementById(idImgPreview);
+      const canvas = document.getElementById('canvas-snap');
+      const zonVideo = document.getElementById(idZonVideo);
+      const btnSnap = document.getElementById(idButangSnap);
+
+      if (!pemetikGambarKamera || !video.srcObject) return;
+
+      // Lukis imej dari video ke dalam canvas
+      canvas.width = video.videoWidth || 640;
+      canvas.height = video.videoHeight || 480;
+      canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+      
+      // Ambil data Base64
+      dataGambarB64 = canvas.toDataURL('image/jpeg', 0.85);
+      img.src = dataGambarB64;
+      
+      // Urus paparan elemen
+      img.classList.remove('hidden');
+      zonVideo.classList.add('hidden');
+      if (btnSnap) btnSnap.classList.add('hidden');
+      
+      // Tutup strim kamera fizikal selepas gambar diambil
+      pemetikGambarKamera.getTracks().forEach(track => track.stop());
+      pemetikGambarKamera = null;
+      
+      paparNotifikasiPintar("📸 Gambar bukti berjaya dirakam!", "sukses");
+    }
+
+    function tutupSemuaKamera() {
+      if (penstrimanKameraAktif) { 
+        try { penstrimanKameraAktif.stop(); } catch(e){} 
+        penstrimanKameraAktif = null; 
+      }
+      if (pemetikGambarKamera) { 
+        pemetikGambarKamera.getTracks().forEach(track => track.stop()); 
+        pemetikGambarKamera = null; 
+      }
+      
+      ['pinjam', 'pulang'].forEach(t => {
+        const zScan = document.getElementById(`zon-scan-${t}`);
+        const zSnap = document.getElementById(`zon-snap-${t}`);
+        const video = document.getElementById(`video-snap-${t}`);
+        const preview = document.getElementById(`preview-snap-${t}`);
+        const btnSnap = document.getElementById(`btn-capture-${t}`);
+        const btnScan = document.getElementById(`btn-toggle-scan-${t}`);
+        
+        if(zScan) zScan.classList.add('hidden');
+        if(zSnap) zSnap.classList.add('hidden');
+        if(video) video.classList.add('hidden');
+        if(btnSnap) btnSnap.classList.add('hidden');
+        if(preview) { preview.classList.add('hidden'); }
+        if(btnScan) btnScan.innerHTML = "📷 Imbas QR";
+      });
+    }
+
+    async function hantarTransaksiPinjaman() {
+      const kodSekolah = document.getElementById('kod-sekolah-terpilih-pinjam').value;
+      const namaPeminjam = document.getElementById('nama-peminjam').value.trim();
+      const emelPeminjam = document.getElementById('emel-peminjam').value.trim(); 
+      const tarikhJangkaPulang = document.getElementById('tarikh-pulang-pinjam').value;
+      if(!kodSekolah || !namaPeminjam || !emelPeminjam || troliImbasan.length === 0) {
+        paparNotifikasiPintar("🔒 Sila lengkapkan maklumat & imbas item!", "ralat"); return;
+      }
+      const payload = { action: "prosesPinjaman", kodSekolah, namaSekolah: dbSekolah.find(s=>s.kod===kodSekolah).nama, emelSekolah: dbSekolah.find(s=>s.kod===kodSekolah).emel, namaPeminjam, emelPeminjam, tarikhJangkaPulang, senaraiIdAset: troliImbasan, gambarB64: dataGambarB64 };
+      eksekusiHantarApi(payload, event ? event.target : null);
+    }
+
+    async function hantarTransaksiPemulangan() {
+      const kodSekolah = document.getElementById('kod-sekolah-terpilih-pulang').value;
+      const catatan = document.getElementById('catatan-kondisi').value.trim();
+      if(!kodSekolah || troliImbasan.length === 0) {
+        paparNotifikasiPintar("🔒 Sila pilih sekolah & imbas item!", "ralat"); return;
+      }
+      const payload = { action: "prosesPemulangan", kodSekolah, namaSekolah: dbSekolah.find(s=>s.kod===kodSekolah).nama, catatanKondisi: catatan, senaraiIdAset: troliImbasan, gambarB64: dataGambarB64 };
+      eksekusiHantarApi(payload, event ? event.target : null);
+    }
+
+    async function eksekusiHantarApi(payloadData, butangHantar) {
+      try {
+        tutupSemuaKamera();
+        if (butangHantar) { butangHantar.innerText = "⏳ Memproses..."; butangHantar.disabled = true; }
+        const namaAtauKodSekolah = `${payloadData.kodSekolah} - ${payloadData.namaSekolah}`;
+        if (payloadData.action === "prosesPinjaman") {
+          dbAset.forEach(a => { if (payloadData.senaraiIdAset.includes(a.id)) { a.status = "Dipinjam"; a.sekolahSemasa = namaAtauKodSekolah; } });
+        } else {
+          dbAset.forEach(a => { if (payloadData.senaraiIdAset.includes(a.id)) { a.status = "Sedia"; a.sekolahSemasa = ""; } });
+        }
+        binaLogEdaranSekolah(); binaSenaraiAsetVisual(dbAset);
+
+        // 1. Hantar data ke Google Sheets API
+        await fetch(API_URL, { method: "POST", mode: "no-cors", headers: { "Content-Type": "text/plain" }, body: JSON.stringify(payloadData) });
+        
+        // 2. Papar notifikasi berjaya di atas modal
+        paparNotifikasiPintar("Rekod transaksi berjaya diproses!", "sukses");
+        
+        // 3. Tutup borang modal selepas 1 saat (beri ruang pengguna nampak toast kejap)
+        setTimeout(() => {
+          tutupModalTab();
+          
+          // 4. Cetus semula spinner Unit PPDPU secara manual di atas skrin gelap sedia ada (ANTI-BLINK)
+          // Mula-mula, masukkan semula elemen spinner ke dalam HTML jika ia telah di-remove sebelum ini
+          let spinner = document.getElementById('landing-page-spinner');
+          if (!spinner) {
+            const divSpinner = document.createElement('div');
+            divSpinner.id = "landing-page-spinner";
+            divSpinner.className = "fixed inset-0 bg-slate-950 z-[999999] flex flex-col items-center justify-center p-4 transition-all duration-500 opacity-0";
+            divSpinner.innerHTML = `
+              <div class="animate-spin rounded-full h-14 w-14 border-4 border-slate-800 border-t-indigo-500 shrink-0"></div>
+              <h3 class="text-white font-semibold text-base sm:text-lg mt-6 tracking-wide text-center px-4 leading-relaxed">Unit Sumber Teknologi Pendidikan PPDPU</h3>
+              <p class="text-slate-400 text-xs sm:text-sm mt-2 animate-pulse text-center px-4">Loading Smart Asset System...</p>
+            `;
+            document.body.appendChild(divSpinner);
+            spinner = divSpinner;
+          }
+          
+          // Tukar opacity kepada 100 untuk paparan transisi masuk yang lembut (fade-in)
+          setTimeout(() => { spinner.classList.remove('opacity-0'); spinner.classList.add('opacity-100'); }, 50);
+
+          // 5. Kosongkan semua baki input borang lama (Soft Reset)
+          troliImbasan = [];
+          dataGambarB64 = "";
+          kemaskiniPaparanTroli();
+          
+          ['pinjam', 'pulang'].forEach(t => {
+            const inpSek = document.getElementById(`input-sekolah-${t}`);
+            const kodSek = document.getElementById(`kod-sekolah-terpilih-${t}`);
+            if (inpSek) inpSek.value = "";
+            if (kodSek) kodSek.value = "";
+          });
+          const namaPem = document.getElementById('nama-peminjam');
+          const emelPem = document.getElementById('emel-peminjam');
+          const catKon = document.getElementById('catatan-kondisi');
+          if (namaPem) namaPem.value = "";
+          if (emelPem) emelPem.value = "";
+          if (catKon) catKon.value = "";
+          
+          const blokBaki = document.getElementById('blok-aset-dipinjam');
+          if (blokBaki) blokBaki.classList.add('hidden');
+
+          // 6. Tarik data paling *fresh* dari Sheets di belakang tab, kemudian tutup semula spinner secara automatik
+          setTimeout(async () => {
+            await muatDataAsalDariSheets(); 
+            if (butangHantar) { butangHantar.disabled = false; butangHantar.innerText = payloadData.action === "prosesPinjaman" ? "Hantar Rekod Pinjaman" : "Sahkan Pemulangan Aset"; }
+          }, 1500);
+
+        }, 1000);
+
+      } catch (e) {
+        paparNotifikasiPintar("Ralat: " + e.toString(), "ralat");
+        if (butangHantar) { butangHantar.innerText = "Cuba Semula"; butangHantar.disabled = false; }
+      }
+    }
+
+    function bunyikanKesanSuara(jenis) {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator(); const gain = ctx.createGain();
+        osc.connect(gain); gain.connect(ctx.destination);
+        if (jenis === 'sukses') {
+          osc.frequency.setValueAtTime(880, ctx.currentTime); gain.gain.setValueAtTime(0.1, ctx.currentTime); osc.start(); osc.stop(ctx.currentTime + 0.1);
+        } else {
+          osc.frequency.setValueAtTime(150, ctx.currentTime); gain.gain.setValueAtTime(0.2, ctx.currentTime); osc.start(); osc.stop(ctx.currentTime + 0.15);
+        }
+      } catch (e) {}
+    }
+
+    function paparNotifikasiPintar(mesej, jenis = 'sukses') {
+      const kontainer = document.getElementById('kontainer-toast');
+      
+      // Memastikan kedudukan toast sentiasa berada di atas z-index paling tinggi global skrin
+      kontainer.style.zIndex = "999999"; 
+      
+      const toast = document.createElement('div');
+      if (jenis === 'sukses') {
+        toast.className = "bg-slate-900/95 border border-emerald-500/40 text-emerald-400 text-xs font-semibold px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-2 animate-fade-in-up backdrop-blur-md pointer-events-auto mb-2";
+        toast.innerHTML = `<span>✅</span> <span class="text-slate-100">${mesej}</span>`;
+        bunyikanKesanSuara('sukses');
+      } else {
+        toast.className = "bg-slate-900/95 border border-red-500/40 text-red-400 text-xs font-semibold px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-2 animate-fade-in-up backdrop-blur-md pointer-events-auto mb-2";
+        toast.innerHTML = `<span>❌</span> <span class="text-slate-100">${mesej}</span>`;
+        bunyikanKesanSuara('ralat');
+        
+        const overlay = document.getElementById('overlay-ralat-skrin');
+        if(overlay) { 
+          overlay.classList.remove('opacity-0'); 
+          overlay.classList.add('opacity-100'); 
+          setTimeout(() => { overlay.classList.remove('opacity-100'); overlay.classList.add('opacity-0'); }, 150); 
+        }
+      }
+      kontainer.appendChild(toast);
+      setTimeout(() => { toast.remove(); }, 2500);
+    }
+  </script>
+</body>
+</html>
